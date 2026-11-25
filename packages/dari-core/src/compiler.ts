@@ -120,7 +120,7 @@ function checkProgram(source:string,model?:ModelPort,options:{allowTestSources?:
    const node=modelLocations.get(expr);if(!node||!focus)return false;
    return (node.sourceStart??node.at)<=focus.start&&(node.end??node.at)>=focus.end;
   };
-  const hint=(expr:QueryExprType)=>{const node=modelLocations.get(expr);return node?(node.end!==undefined?source.slice(node.sourceStart??node.at,node.end):expressionHint(node)):expr.kind==='member'?(names.get(intent.nodes[expr.node].id)??intent.nodes[expr.node].dataset.symbol)+'.'+expr.member.symbol:'condition';};
+  const hint=(expr:QueryExprType)=>{const node=modelLocations.get(expr);return node?(node.end!==undefined?source.slice(node.sourceStart??node.at,node.end):expressionHint(node)??'condition'):expr.kind==='member'?(names.get(intent.nodes[expr.node].id)??intent.nodes[expr.node].dataset.symbol)+'.'+expr.member.symbol:'condition';};
   if(/dimension is not authorized for grouping/.test(message)){
    const members=intent.steps.flatMap(step=>step.kind==='project'&&step.value.kind==='record'?Object.values(step.value.fields).flatMap(expr=>expr.kind==='call'&&expr.name==='not_none'?expr.args:[expr]).filter(expr=>expr.kind==='member'&&expr.member.kind==='dimension'):[]);
    const target=members.find(located)??(members.length===1?members[0]:undefined);

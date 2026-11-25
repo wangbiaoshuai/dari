@@ -68,7 +68,8 @@ function presentationSpec(raw:Record<string,unknown>,name:string,fields:Record<s
  }else if(raw.x_axis!==undefined)throw Error('x_axis belongs to LineChart or AreaChart');
  if(!barNames.has(name)&&(raw.orientation!==undefined||raw.category!==undefined||raw.mode!==undefined||raw.metrics!==undefined))throw Error('orientation/category/mode/metrics belong to bar chart contracts; use the component mappings in dari://help/dari-figures.md');
  if(barNames.has(name)){
-  if(raw.x!==undefined)throw Error(name+' uses category: $.field');
+  // 柱状图的类别轴写 x 或 category 等价：把 x 归一化为 category，避免与折线/饼图习惯冲突。
+  if(raw.x!==undefined){if(raw.category===undefined)raw.category=raw.x;delete raw.x;}
   if(raw.stack!==undefined)throw Error('StackedBarChart uses mode: StackMode::Absolute or StackMode::Percent; other bar charts are parallel');
   if(raw.category===undefined)throw Error(name+' requires category: $.field');
   raw.x=raw.category;delete raw.category;

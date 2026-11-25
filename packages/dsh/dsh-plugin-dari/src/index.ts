@@ -11,6 +11,8 @@ import { runService } from '@local/dari/service';
 import { createIntegration } from '@local/dari-model';
 import { createKnowledge } from '@local/dari-model';
 import { installWorkMethods } from './work-methods.ts';
+import { installSessionDrafts } from './session-drafts.ts';
+import { installDataWindow } from './data-window.ts';
 import { createTimeContext } from '@local/dari-model';
 import { guidedTools } from './guided-tools.ts';
 import { createTools } from './tools.ts';
@@ -40,6 +42,8 @@ export function apply(ctx: PluginContext, config: PluginConfig = {}): void {
   }
 
   installWorkMethods(ctx);
+  installSessionDrafts({ ctx, knowledge, log });
+  installDataWindow({ ctx, knowledge, log });
 
   const timeContext = createTimeContext({ ctx, log });
   timeContext.install();

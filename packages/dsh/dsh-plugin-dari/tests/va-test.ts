@@ -53,8 +53,8 @@ test('错误、空答案、卸载及提交失败都不会当作成功答案',asy
  await assert.rejects(harness({fail:true}).runtime.ask(caller(),'p','问题'),/admission failure/);
  await assert.rejects(harness().runtime.ask(caller(),'p','问题',AbortSignal.abort()));
 });
-test('推理档位按当前路由继承，只有 DeepSeek 默认 off',async()=>{
- for(const [model,effort] of [['deepseek-flash','off'],['qwen',undefined]]){const h=harness(),p=caller();p.session.requestHeader=()=>({config:{model}});await h.runtime.ask(p,'p','问题');assert.deepEqual(h.starts[0].agentOptions,effort?{reasoningEffort:effort}:undefined)}
+test('推理档位默认继承父会话，显式配置才覆盖',async()=>{
+ for(const [model,effort] of [['deepseek-flash',undefined],['qwen',undefined]]){const h=harness(),p=caller();p.session.requestHeader=()=>({config:{model}});await h.runtime.ask(p,'p','问题');assert.deepEqual(h.starts[0].agentOptions,effort?{reasoningEffort:effort}:undefined)}
  const custom=harness({config:{vaPreset:'custom',vaReasoningEffort:'low'}});await custom.runtime.ask(caller(),'p','问题');assert.equal(custom.starts[0].agentPreset,'custom');assert.deepEqual(custom.starts[0].agentOptions,{reasoningEffort:'low'});
 });
 test('助手装配按当前工作区提供完整词表，空工具面与逐字文本',async()=>{

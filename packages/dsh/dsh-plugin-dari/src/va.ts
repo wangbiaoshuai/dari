@@ -94,7 +94,10 @@ export function createVaRuntime({ ctx, log, config }: {
               messageId = await service.sendMessage(caller, childId, prompt, { signal: requestSignal });
             } else {
               const route = caller.session.requestHeader?.()?.config ?? caller.options;
-              const effort = config?.vaReasoningEffort?.trim() || (/^deepseek(?:[-_/]|$)/i.test(route?.model ?? '') ? 'off' : 'inherit');
+              // 默认继承父会话档位：部分路由不接受 "off"，显式配置才覆盖。
+              const configuredEffort = config?.vaReasoningEffort?.trim();
+              const effort = configuredEffort && configuredEffort !== 'inherit' ? configuredEffort : 'inherit';
+              void route;
               activation = await service.startActivation({ provider: 'spawn', label, childId, delivery: 'caller', signal: requestSignal,
                 parent: caller, cwd, agentPreset: preset, prompt,
                 ...(effort === 'inherit' ? {} : { agentOptions: { reasoningEffort: effort } }) });

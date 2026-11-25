@@ -8,4 +8,5 @@ function node(source,text){const event={type:'user/message',seq:1,data:{id:'id',
 let n=node({kind:'push-to-user',label:'test'},'inline');states=[];effects=[];const inline=view({node:n});effects.forEach(f=>f());assert.equal(fetches,0);assert(JSON.stringify(inline).includes('inline'));
 n=node({kind:'push-to-user',label:'test',href:'file:///attachments/%E4%B8%AD%E6%96%87%20a%23%3F%25.md'},'notice');states=[];effects=[];view({node:n});effects.forEach(f=>f());await new Promise(r=>setTimeout(r,0));assert.equal(fetches,1);assert.equal(states[0],'# Delivered');assert.equal(new URL(lastUrl).pathname,'/api/file');assert.equal(new URL(lastUrl).searchParams.get('path'),'/attachments/中文 a#?%.md');
 n=node({kind:'push-to-user',href:'https://outside.test/a'},'notice');states=[];effects=[];view({node:n});effects.forEach(f=>f());assert.equal(fetches,1);assert.match(states[1],/同源/);
-console.log('Push client: inline, replayable href, loading and cross-origin rejection passed');
+n=node({kind:'push-to-user',href:'file:///C:/Users/demo/a.md'},'notice');states=[];effects=[];view({node:n});effects.forEach(f=>f());await new Promise(r=>setTimeout(r,0));assert.equal(new URL(lastUrl).searchParams.get('path'),'C:/Users/demo/a.md');
+console.log('Push client: inline, replayable href, loading, cross-origin rejection and Windows drive path passed');

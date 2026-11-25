@@ -39,6 +39,7 @@ export function renderRoutes(_args:unknown,value:{data:ReturnType<typeof routePo
       const forward=edge.from===p.nodes[j],card=edge.cardinality;
       const cardinality=card?`${card[forward?'from':'to']}→${card[forward?'to':'from']}`:'未声明';
       lines.push(`- ${p.nodes[j]} ${forward?'--[':'<--['}${edge.relation}${forward?']-->':']--'} ${p.nodes[j+1]} · ${cardinality} · key: ${keyText(edge.key)}`);
+      if(edge.note)lines.push(`  ${edge.note}`);
       if(edge.guard!==null)lines.push(`  guard: ${JSON.stringify(edge.guard)}`);
       if(edge.from_role||edge.to_role)lines.push(`  roles: ${edge.from_role??'未声明'} → ${edge.to_role??'未声明'}`);
     });

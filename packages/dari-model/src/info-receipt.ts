@@ -8,6 +8,7 @@ export function renderInfo(_args:unknown,value:{data:ReturnType<typeof readPoint
   const literal=(v:unknown)=>JSON.stringify(v);
   for(const item of value.data.items){
     const lines=[`## ${item.id}`,'',`- kind: ${item.kind}`];
+    if(item.plan_nullable&&item.plan_note)lines.push('- 可空提示: '+item.plan_note);
     const query=['dataset','entity','relation','field','dimension','measure','role'].filter(k=>Object.hasOwn(item,k));
     if(query.length)lines.push('- query: '+query.map(k=>`${k}=${literal(item[k])}`).join(', '));
     if(item.names?.length)lines.push('- names: '+literal(item.names));

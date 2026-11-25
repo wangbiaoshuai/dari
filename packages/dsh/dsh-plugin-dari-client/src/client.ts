@@ -47,7 +47,10 @@ loader.load({
           if(reference.protocol === "file:") {
             if(reference.hostname && reference.hostname !== "localhost")throw Error("Remote file host");
             url = new URL("api/file",window.location.href);
-            url.searchParams.set("path",decodeURIComponent(reference.pathname));
+            // Windows 的 file:///C:/x 的 pathname 是 /C:/x；宿主要原生路径，去掉盘符前的斜杠。
+            let path = decodeURIComponent(reference.pathname);
+            if(/^\/[A-Za-z]:/.test(path))path = path.slice(1);
+            url.searchParams.set("path",path);
           } else url = reference;
         }catch {setProblem("无法加载交付：附件地址无效");return;}
         if(url.origin !== window.location.origin){setProblem("无法加载交付：附件必须同源");return;}

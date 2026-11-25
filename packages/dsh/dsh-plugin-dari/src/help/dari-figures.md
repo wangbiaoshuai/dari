@@ -12,6 +12,8 @@
 | PieChart | x 类别，value 数值，可选 donut |
 | ScatterChart | x 与 value 数值，可选 size |
 | Histogram | value 原始观测值，可选 bins（1..200） |
+
+柱状图（BarChart、GroupedBarChart、MultiBarChart、StackedBarChart）的类别轴在 `spec` 中写 `category`，例如 `spec = {category: $.x, value: $.y}`；顶层写 `x = $.x` 也接受，等价于 `category`。
 | BoxPlot | x 类别，value 原始观测值 |
 | Heatmap | x 与 series 为两维类别，value 数值 |
 | RadarChart | x 指标，series 比较对象，value 数值，至少三个指标 |

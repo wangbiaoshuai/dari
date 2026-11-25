@@ -14,7 +14,12 @@ parentPort.on('message',message=>{
  if(message.close){parentPort.close();return;}
  try{
   if(startupError)throw startupError;
-  const response=runtime.request(encodeLocatedInput({method:message.method,input:message.input},(message.origins??[]).map(o=>({...o,path:['input',...o.path]}))));
+  // 单服务模型：method 就是 ABI 方法；服务集合模型：method 是路由，ABI 方法嵌在 input 里。
+  const packet=message.route
+   ?{method:message.route,input:{method:message.method,input:message.input}}
+   :{method:message.method,input:message.input};
+  const origins=(message.origins??[]).map(o=>({...o,path:message.route?['input','input',...o.path]:['input',...o.path]}));
+  const response=runtime.request(encodeLocatedInput(packet,origins));
   finish(response.error?{error:response.diagnostics??response}:{value:response.ok});
  }catch(error){finish({error:error.diagnostics??error.message});}
 });

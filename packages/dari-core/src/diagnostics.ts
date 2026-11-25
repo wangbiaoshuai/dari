@@ -29,9 +29,24 @@ export function repairSuggestion(message:string):string|undefined {
  if(/stack requires Stack::/.test(message))return 'stack 使用 Stack::None、Stack::Total 或 Stack::Percent，按需要选择并列、原值堆叠或构成比堆叠';
  if(/Stacking requires an additive|does not allow Sum/.test(message))return '堆叠使用允许 Sum 的同类指标；同一指标只需并列时选择 GroupedBarChart，不同指标并列时选择 MultiBarChart，保留业务类型';
  if(/precision requires/.test(message))return 'precision 使用 0..12 的静态整数；它只改变展示，不改变原始数据精度';
- if(/allow_no_data|图表没有数据/.test(message))return '先核对筛选口径；若业务允许无数据，显式设置 spec.allow_no_data: True，否则保留错误，不填造占位数据';
+ if(/allow_no_data|allowNoData|表格没有数据|图表没有数据/.test(message))return '先向用户说明该口径在数据中无记录，并给出数据覆盖范围与所用时间窗；不要继续探测，也不要用 glob、load_workspace_dependencies 等探索数据文件。若业务允许无数据，才显式设置 spec.allow_no_data: True';
  if(/Use \$\.field/.test(message))return '字段选择写为 $.field，不使用字符串或匿名函数';
  if(/Unknown component/.test(message))return '核对组件名称与大小写；扩展组件使用 PascalCase，普通标签使用小写';
+ return undefined;
+}
+/** 模型侧只给固定文案，这里按消息补一条可应用的修复片段。 */
+function fixSnippet(d:Diagnostic):{label:string;text:string}|undefined {
+ if(/Predicate requires Bool; got Option\(Bool\)/.test(d.message)){
+  const expression=d.expression?.trim();
+  return {label:'可直接应用的修复',text:'unwrap_or!('+(expression&&expression.length>0?expression:'<filter 的整个条件>')+', False)'
+   +'（每个 filter 的条件都必须是 Bool；有多个 filter 时逐个包裹。可空性会沿 && 与 || 传播，只包裹其中一个比较不够）'};
+ }
+ if(/uses category: \$\.field/.test(d.message)){
+  return {label:'修复指引',text:'柱状图用 category = $.<字段>，x 只用于折线、面积与饼图；例如 BarChart(data = rows, category = $.severity, value = $.count)'};
+ }
+ if(/dimension does not support this filter operation/.test(d.message)){
+  return {label:'修复指引',text:'按 dari_kg_info 的 filters 选择操作：时间维度常用 Eq、Ge（>=）、Lt（<）；`>` 多数情况要写成 `>=`，不要使用未发布的操作'};
+ }
  return undefined;
 }
 export function renderDiagnostics(source:string,diagnostics:Diagnostic[],status='CheckFailed'):string {
@@ -42,6 +57,7 @@ export function renderDiagnostics(source:string,diagnostics:Diagnostic[],status=
   if(d.expression)lines.push('  表达式：'+d.expression.replace(/[\r\n]+/g,' '));
   if(d.reason)lines.push('  原因：'+d.reason.replace(/[\r\n]+/g,' '));
   const suggestion=d.suggestion??repairSuggestion(d.message);if(suggestion)lines.push('  修复建议：'+suggestion);
+  const fix=fixSnippet(d);if(fix)lines.push('  '+fix.label+'：'+fix.text);
  }
  if(diagnostics.length>20)lines.push('- 另有 '+(diagnostics.length-20)+' 条'+(status==='Warnings'?'告警':'错误')+'未列出；修复上述问题后再次检查');
  return lines.join('\n');

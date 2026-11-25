@@ -56,7 +56,12 @@ export function searchPoints(graph:SemanticGraph,args:Record<string,any>){
   return {results};
 }
 
-type Edge={from:string;to:string;relation:string;cardinality:Record<string,unknown>|null;key:unknown;guard:unknown;from_role?:string;to_role?:string};
+type Edge={from:string;to:string;relation:string;cardinality:Record<string,unknown>|null;key:unknown;guard:unknown;from_role?:string;to_role?:string;note?:string};
+/** 该侧基数为 Optional 时，到达的字段在比较与投影中都是 Option。 */
+function optionalNote(cardinality:unknown,side:'from'|'to',reached:string):string|undefined {
+  if(!record(cardinality)||cardinality[side]!=='Optional')return undefined;
+  return `到达 ${reached} 的字段在比较与投影中可空（该侧基数为 Optional）：比较前用 unwrap_or!(条件, False)，或先 filter(is_some(...))`;
+}
 export function routePoints(graph:SemanticGraph,args:Record<string,any>){
   if(Object.keys(args).some(k=>!['from','to','via'].includes(k))||typeof args.from!=='string'||typeof args.to!=='string')throw new Error('routes requires from and to root IDs');
   if(args.via!==undefined&&(!Array.isArray(args.via)||args.via.some((id:unknown)=>typeof id!=='string')))throw new Error('routes via must be an ordered array of Dataset/Entity root IDs');
@@ -77,8 +82,12 @@ export function routePoints(graph:SemanticGraph,args:Record<string,any>){
   for(const p of index.values())if(p.kind==='Relation'&&p.id===p.root){
     const f=p.fact;if(typeof f.from_dataset!=='string'||typeof f.to_dataset!=='string')continue;
     const from=semanticId(f.from_dataset),to=semanticId(f.to_dataset);if(!index.has(from)||!index.has(to))continue;
-    const edge:Edge={from,to,relation:p.id,cardinality:f.cardinality??null,key:f.key??null,guard:f.guard??null,...(f.from_role?{from_role:semanticId(f.from_role)}:{}),...(f.to_role?{to_role:semanticId(f.to_role)}:{})};
-    for(const [a,b] of [[from,to],[to,from]]){const list=adjacency.get(a)??[];list.push({to:b,edge});adjacency.set(a,list);}
+    const base:Edge={from,to,relation:p.id,cardinality:f.cardinality??null,key:f.key??null,guard:f.guard??null,...(f.from_role?{from_role:semanticId(f.from_role)}:{}),...(f.to_role?{to_role:semanticId(f.to_role)}:{})};
+    for(const [a,b,side,reached] of [[from,to,'to',to],[to,from,'from',from]] as const){
+      const note=optionalNote(f.cardinality,side,reached);
+      const edge:Edge=note?{...base,note}:base;
+      const list=adjacency.get(a)??[];list.push({to:b,edge});adjacency.set(a,list);
+    }
   }
   for(const list of adjacency.values())list.sort((a,b)=>compare(a.edge.relation,b.edge.relation)||compare(a.to,b.to));
   type Path={nodes:string[];edges:Edge[];position:number};

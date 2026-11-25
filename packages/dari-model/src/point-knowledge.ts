@@ -57,17 +57,36 @@ function definition(point:Point):Fact {
   }
   return structuredClone(out);
 }
+/** 数据集作为 Optional 侧参与关系时，经该关系到达的字段在比较与投影中可空。 */
+function optionalSides(graph:SemanticGraph):Map<string,string[]> {
+  const sides=new Map<string,string[]>();
+  const descriptors=(graph as any).relations;
+  if(!record(descriptors))return sides;
+  for(const [name,value] of Object.entries(descriptors)){
+    if(!record(value)||typeof value.from_dataset!=='string'||typeof value.to_dataset!=='string'||!record(value.cardinality))continue;
+    const relation='relations/'+encodePart(name);
+    for(const [side,dataset] of [['from',value.from_dataset],['to',value.to_dataset]] as const){
+      if(value.cardinality[side]!=='Optional')continue;
+      const id=semanticId(dataset);
+      sides.set(id,[...(sides.get(id)??[]),relation]);
+    }
+  }
+  return sides;
+}
 /** A batch transports independent exact reads; definitions never recursively expand neighbors. */
 export function readPoints(graph:SemanticGraph,args:Record<string,any>) {
   if(Object.keys(args).some(k=>k!=='ids')||!Array.isArray(args.ids)||!args.ids.length||args.ids.length>64||args.ids.some((id:any)=>typeof id!=='string'))throw new Error('info accepts ids: 1..64 exact knowledge point IDs');
   const items:any[]=[],errors:any[]=[];
+  const optional=optionalSides(graph);
   for(const id of [...new Set<string>(args.ids)]){
     try{
       const p=getPoint(graph,id);
       const {path}=knowledgeNode(graph,id);const query:Fact={};
       if(path[0]==='datasets'){query.dataset=path[1];if(path.length===4){const member:Record<string,string>={fields:'field',dimensions:'dimension',measures:'measure',roles:'role'};if(member[path[2]])query[member[path[2]]]=path[3];if(path[2]==='relations')query.relation=p.fact.relation??path[3];}}
       else if(path[0]==='entities')query.entity=path[1];else if(path[0]==='relations')query.relation=path[1];
-      items.push({id,kind:p.kind,...(hasOwnedNodes(graph)?{node:p.root,path:path.slice(2)}:{}),...query,...(p.names.length?{names:p.names}:{}),...(p.doc.trim()?{doc:p.doc}:{}),facts:definition(p)});
+      const relations=optional.get(p.root);
+      const plan=relations?{plan_nullable:true,plan_note:`经 ${relations.slice(0,3).join('、')}${relations.length>3?` 等 ${relations.length} 条关系`:''} 到达该数据集时字段在比较与投影中可空：比较前用 unwrap_or!(条件, False)，或先 filter(is_some(...))`}:{};
+      items.push({id,kind:p.kind,...(hasOwnedNodes(graph)?{node:p.root,path:path.slice(2)}:{}),...query,...plan,...(p.names.length?{names:p.names}:{}),...(p.doc.trim()?{doc:p.doc}:{}),facts:definition(p)});
     }catch(error){errors.push({id,error:(error as Error).message});}
   }
   return {items,...(errors.length?{errors}:{})};

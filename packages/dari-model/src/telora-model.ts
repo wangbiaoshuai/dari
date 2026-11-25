@@ -18,13 +18,34 @@ export async function openModel(artifact:string){
     const worker=new Worker(new URL('./model-worker.mjs',import.meta.url),{execArgv:[],workerData:{buffer,artifact:pathResolve(artifact)}});
     const stats={requests:0,checkMs:[] as number[],contractMs:0};
     let closed=false;const exited=new Promise<void>(resolve=>worker.once('exit',()=>resolve()));
-    function request(method:string,input:unknown,origins:InputOrigin[]=[]):any{
+    // 服务集合模型（多个 service slot）把路由放在 method、ABI 方法放进 input，
+    // 输出再包一层 body；首次探测到该协议后固定使用。
+    let route:string|undefined;
+    // 检测到服务集合协议（响应带 body）后，check 也使用集合模型的 ABI 方法名。
+    let collection=false;
+    function send(method:string,input:unknown,origins:InputOrigin[],at:string|undefined):any{
         if(closed)throw Error('Model bridge is closed');
-        Atomics.store(state,0,0);worker.postMessage({method,input,origins});
+        Atomics.store(state,0,0);worker.postMessage({method,input,origins,...(at===undefined?{}:{route:at})});
         if(Atomics.wait(state,0,0,60000)==='timed-out'){closed=true;void worker.terminate();throw Error('Model ABI request timed out');}
         const response=JSON.parse(new TextDecoder().decode(bytes.subarray(0,Atomics.load(state,1))));
-        stats.requests++;
-        if(response.error){if(Array.isArray(response.error))throw new ModelCheckFailure(response.error);throw Error(modelErrorText(response.error));}return response.value;
+        stats.requests++;return response;
+    }
+    function request(method:string,input:unknown,origins:InputOrigin[]=[]):any{
+        let response=send(method,input,origins,route);
+        if(route===undefined&&response.error!==undefined&&JSON.stringify(response.error).includes('unknown service route')){
+            route='ontology/model';
+            response=send(method,input,origins,route);
+        }
+        if(response.error){if(Array.isArray(response.error))throw new ModelCheckFailure(response.error);throw Error(modelErrorText(response.error));}
+        // 服务集合模型把服务输出放在 body 里，并在同一层给出 contract_id；单服务模型直接返回结果。
+        const value=response.value;
+        if(value!==null&&typeof value==='object'&&!Array.isArray(value)
+            &&value.body!==null&&typeof value.body==='object'&&!Array.isArray(value.body)){
+            collection=true;
+            return value.contract_id!==undefined&&value.body.contract_id===undefined
+                ?{...value.body,contract_id:value.contract_id}:value.body;
+        }
+        return value;
     }
     function scalar(name:string):Type{return sharedTypes[name]??{kind:'scalar',name};}
     const types:Record<string,Type>=Object.create(null),businessTypes=new Map<string,Type>(),resolvingMeans=new Set<string>();
@@ -35,9 +56,12 @@ export async function openModel(artifact:string){
         if(resolvingMeans.has(key))throw Error('Cyclic model mean result type '+key);
         const previous=businessTypes.get(key);
         if(previous)return previous;
-        const base=scalar(physical);
-        const primary=Object.hasOwn(primaryCodecs,logical);
-        const codec=primary?primaryCodecs[physical]:codecs[key];
+        const primary=Object.hasOwn(primaryCodecs,logical),specific=codecs[key];
+        // 服务集合模型把枚举列发布为 logical="String" + storage="Float"，且没有该组合的 codec；
+        // 这类列按 logical 的类型与主编码器处理（SQL 实际返回文本值）。
+        const byLogical=primary&&specific===undefined&&logical!==physical;
+        const base=scalar(byLogical?logical:physical);
+        const codec=byLogical?primaryCodecs[logical]:(primary?primaryCodecs[physical]:specific);
         if(!codec)throw Error('Missing model type codec '+key);
         const metadata=semantics?.[key],shared=metadata?.identity?sharedTypes[metadata.identity]:undefined;
         if(metadata?.identity&&!shared)throw Error('Unknown shared ontology type '+metadata.identity);
@@ -81,7 +105,10 @@ export async function openModel(artifact:string){
         datasets,types,relations:Object.fromEntries(contract.relations.map(r=>[r.symbol,{...r,kind:'relation' as const}])),
         check_type(intent:IntentType,encoded:EncodedIntent){
             const start=performance.now();
-            const checked:WireTemplate=request('ontology/model',{method:'transform',input:{intent:encoded.wire}},encoded.origins.map(o=>({...o,path:['input','intent',...o.path]})));
+            // 服务集合模型（semora）用 check_type + intent_json；单服务模型用 transform + intent。
+            const checked:WireTemplate=collection
+                ?request('ontology/model',{method:'check_type',input:{intent_json:encoded.json}})
+                :request('ontology/model',{method:'transform',input:{intent:encoded.wire}},encoded.origins.map(o=>({...o,path:['input','intent',...o.path]})));
             stats.checkMs.push(performance.now()-start);
             const fields:Record<string,Type>=Object.create(null);
             for(const c of checked.columns){const t=business(c.logical,c.type);fields[c.name]=c.nullable?{kind:'option',inner:t}:t;}
