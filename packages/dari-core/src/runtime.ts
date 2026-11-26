@@ -4,6 +4,7 @@ function readProjection(row:any,path:readonly string[]):any {
  return value;
 }
 import {calendarFunctions,utcBucket,calendarBucket,registerCalendarFunctions} from './calendar.ts';
+import {PROBE_MAX_ROWS} from './probe.ts';
 import {formatValue} from './format.ts';
 import type {TimeFormat} from './time-display.ts';
 import {timeFunctions,epochMillis} from './time-values.ts';
@@ -29,7 +30,7 @@ const reportHtml=(text:string)=>text.split('\n\n').map(block=>{
  if(image)return '<img alt="'+image[1]+'" src="'+image[2]+'">';
  return '<pre style="white-space:pre-wrap">'+html(block)+'</pre>';
 }).join('\n');
-export function resolve(p:Program,db:DatabasePort,inputs:Record<string,unknown>={},execution:{context?:unknown;contextContractId?:string;model?:ModelExecutionPort}={}){
+export function resolve(p:Program,db:DatabasePort,inputs:Record<string,unknown>={},execution:{context?:unknown;contextContractId?:string;model?:ModelExecutionPort;probe?:{bindings:string[]}}={}){
  if(db.dialect!=='sqlite')throw Error('Local SQL runtime requires the sqlite dialect');
  const model=execution.model;
  if(p.model&&(!model||model.contractId!==p.modelContractId||model.implementationId!==p.modelImplementationId||p.model.contractId!==p.modelContractId||p.model.implementationId!==p.modelImplementationId))throw Error(renderDiagnostics(p.source,[{at:0,message:'Model contract changed; check the plan again',stage:'runtime',code:'stale-model-proof',reason:'当前模型身份或实现与检查时不同，已有查询证明不能复用',suggestion:'对同一稿件重新执行检查，再提交；不要修改业务口径或放宽类型'}],'SubmitFailed'));
@@ -401,6 +402,6 @@ export function resolve(p:Program,db:DatabasePort,inputs:Record<string,unknown>=
   }
   const s=children();return /^h[123]$/.test(n.name)?'#'.repeat(Number(n.name[1]))+' '+s:n.name==='strong'?'**'+s+'**':n.name==='em'?'*'+s+'*':s;
  }
- try {const answer=binding(p.answer);const dataDocument=['answer',...includedReports].flatMap(scope=>{const values=valueSections.get(scope);return [...(dataSections.get(scope)??[]),...(values?.length?['## '+scope.replace(/^reports\//,'report/')+'/values\n\n'+values.join('\n')]:[])];}).join('\n\n');return {answer,artifacts,queries,dataDocument,deliveryId:runId,values:Object.fromEntries([...cache].filter(([name])=>!p.bindings.get(name)?.internal))};
+ try {if(execution.probe){const results=execution.probe.bindings.map(name=>{const b=p.bindings.get(name);if(!b)throw Error('Probe binding is unknown: '+name);const rows=remote(name);const columns=Object.entries(b.result!.element.fields??{}).map(([field,t])=>({name:field,...storage(t)}));return {binding:name,rowCount:rows.length,columns,rows:rows.slice(0,PROBE_MAX_ROWS)};});return {answer:'',artifacts,queries,dataDocument:'',deliveryId:runId,values:{},probe:{bindings:results}};}const answer=binding(p.answer);const dataDocument=['answer',...includedReports].flatMap(scope=>{const values=valueSections.get(scope);return [...(dataSections.get(scope)??[]),...(values?.length?['## '+scope.replace(/^reports\//,'report/')+'/values\n\n'+values.join('\n')]:[])];}).join('\n\n');return {answer,artifacts,queries,dataDocument,deliveryId:runId,values:Object.fromEntries([...cache].filter(([name])=>!p.bindings.get(name)?.internal))};
  }finally{for(const table of materialized.values())db.drop(table);}
 }

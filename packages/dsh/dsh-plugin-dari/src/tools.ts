@@ -28,7 +28,7 @@ export function createTools({ knowledge, va, timeContext, attachments, approval,
     {
       name: 'dari_vocab',
       timeoutMs: 125_000,
-      description: 'Align wording from the original user question to domain vocabulary. Returns verbatim ASCII English vocabulary entries grouped by user wording, preserving spelling and case, without knowledge addresses or query plans. Use relevant returned entity/property/value terms with dari_kg_discover for conceptual mappings, to discover actual knowledge IDs, then use dari_kg_info and dari_kg_routes as needed. Include the original question and explicit constraints.'+(ENABLE_KNOWLEDGE_SEARCH?' Use dari_kg_search for scoped lexical searches when needed.':''),
+      description: 'Align wording from the original user question to domain vocabulary. Returns verbatim ASCII English vocabulary entries grouped by user wording, preserving spelling and case, without knowledge addresses or query plans. Use relevant returned entity/property/value terms with dari_kg_discover for conceptual mappings, to discover actual knowledge IDs, then use dari_kg_info and dari_kg_routes as needed. Include the original question and explicit constraints. When a user wording reports no match, treat it as a data value rather than a vocabulary term: find name/alias/id/label fields with dari_kg_discover and confirm where the value lives with dari_probe, instead of calling dari_vocab again.'+(ENABLE_KNOWLEDGE_SEARCH?' Use dari_kg_search for scoped lexical searches when needed.':''),
       parameters: {
         type: 'object',
         properties: {
@@ -54,7 +54,10 @@ export function createTools({ knowledge, va, timeContext, attachments, approval,
         }
         const entry = knowledge.ensureWorkspace(exec);
         await knowledge.ensureIndex(entry);
-        return va.ask(caller, key, query, exec?.signal, entry.settings);
+        const result = await va.ask(caller, key, query, exec?.signal, entry.settings);
+        const answer = typeof result?.answer === 'string' ? result.answer : '';
+        if (!/未找到|没有与该项名称直接对应|没有合适/.test(answer)) return result;
+        return {...result, answer: answer + '\n\n提示：未对齐的项通常是数据值，不是词表术语。下一步用 name、alias、id、label 这类字段做 dari_kg_discover 找候选字段，选定候选后用 dari_probe 确认取值所在的数据集；不要重复调用 dari_vocab。'};
       },
     },
   ];

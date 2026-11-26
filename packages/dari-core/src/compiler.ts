@@ -70,17 +70,17 @@ function modelPresence(root:number,pair:IntentType['pair'],steps:QueryOperation[
  return presence;
 }
 function mismatchDetails(wanted:Type,got:Type):FaultDetails {return got.kind==='option'&&same(wanted,got.inner!)?{code:'nullable-value',reason:'需要非空值，但表达式可能为空',suggestion:'若有业务默认值，用 unwrap_or!；若来自表字段且允许丢弃空值行，在 project 的字段最外层使用 not_none'}:{code:'type-mismatch',reason:'期望类型与表达式的业务类型或容器形态不一致',suggestion:'保留业务类型约束，核对输入契约和投影；不要只按底层存储类型强行转换'};}
-export function check(source:string,model?:ModelPort,options:{allowTestSources?:boolean;contextType?:Type;contextContractId?:string;host?:HostPort}={}):Program{
+export function check(source:string,model?:ModelPort,options:{allowTestSources?:boolean;contextType?:Type;contextContractId?:string;host?:HostPort;probe?:boolean}={}):Program{
  const diagnostics=new DiagnosticCollector();
  try{return checkProgram(source,model,options,diagnostics);}catch(e){if(e instanceof DiagnosticFailure)throw e;if(e instanceof Fault){diagnostics.report(faultDiagnostic(e,'syntax'));throw new DiagnosticFailure(source,diagnostics.list());}throw e;}
 }
-export type CheckOptions={allowTestSources?:boolean;contextType?:Type;contextContractId?:string;host?:HostPort};
+export type CheckOptions={allowTestSources?:boolean;contextType?:Type;contextContractId?:string;host?:HostPort;probe?:boolean};
 export function analyze(source:string,model?:ModelPort,options:CheckOptions={}):{program?:Program;diagnostics:import('./diagnostics.ts').Diagnostic[]}{
  const diagnostics=new DiagnosticCollector();
  try{return {program:checkProgram(source,model,options,diagnostics,true),diagnostics:diagnostics.list()};}
  catch(error){if(error instanceof Fault){diagnostics.report(faultDiagnostic(error,'syntax'));return {diagnostics:diagnostics.list()};}throw error;}
 }
-function checkProgram(source:string,model?:ModelPort,options:{allowTestSources?:boolean;contextType?:Type;contextContractId?:string;host?:HostPort}={},diagnostics=new DiagnosticCollector(),partial=false):Program{
+function checkProgram(source:string,model?:ModelPort,options:{allowTestSources?:boolean;contextType?:Type;contextContractId?:string;host?:HostPort;probe?:boolean}={},diagnostics=new DiagnosticCollector(),partial=false):Program{
  const p:Program={treeNodes:[],references:[],types:new Map(Object.entries(builtinTypes)),bindings:new Map(),answer:'answer',source,warnings:[],model,modelContractId:model?.contractId,modelImplementationId:model?.implementationId,contextType:options.contextType,contextContractId:options.contextContractId,host:options.host};
  const failed=new Set<string>();let asset:string|undefined;
  const modelLocations=new WeakMap<object,Node>();
@@ -822,6 +822,6 @@ function checkProgram(source:string,model?:ModelPort,options:{allowTestSources?:
   }catch(error){finding(error);if(!p.bindings.has(d.name)&&!p.types.has(d.name))failed.add(d.name);}
  }
  if(diagnostics.hasErrors()&&!partial)throw new DiagnosticFailure(source,diagnostics.list(),p.warnings);
- if(p.bindings.get(p.answer)?.type.kind!=='answer'&&!diagnostics.hasErrors())diagnostics.report(faultDiagnostic(new Fault('One answer tree! { Answer [...] }; is required',source.length),'type'));
+ if(p.bindings.get(p.answer)?.type.kind!=='answer'&&!options.probe&&!diagnostics.hasErrors())diagnostics.report(faultDiagnostic(new Fault('One answer tree! { Answer [...] }; is required',source.length),'type'));
  if(diagnostics.hasErrors()&&!partial)throw new DiagnosticFailure(source,diagnostics.list(),p.warnings);return p;
 }

@@ -1,6 +1,7 @@
 export {builtinTypes,contextSelectors,check,analyze,show,same,optional,present,projectionType} from './compiler.ts';
 export type {Type,Program,Binding,CheckOptions,CheckedReference} from './compiler.ts';
 export {resolve} from './runtime.ts';
+export {probeTarget,PROBE_MAX_ROWS} from './probe.ts';
 export type {DatabasePort,SqlRow,LocalColumn} from './database.ts';
 export type {ModelPort,ModelCheckPort,ModelExecutionPort,DatasetSymbol,MemberSymbol,RelationSymbol,IntentType,CheckedIntent,ModelShape,ProofReceipt,EncodedIntent,RemoteResult,ValueCodec} from './model.ts';
 export {MODEL_ABI_VERSION,encodeIntent,proofTarget,verifyReceipt} from './model.ts';
